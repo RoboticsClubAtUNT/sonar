@@ -3,10 +3,10 @@
 //Date: 04/10/2015
 //Purpose: Control DC motors via a "Dual L298 H-bridge Motor Contoller" using TWO "HC-SR04 Ultrasonic sensor"
 #include <NewPing.h>//this is a library for ultrasonic sensor
-#define SAFEZONE  50//SAFEZONE is the distance in which robot will try yo turn when obstacle appear; is set to 50cm (calibratable)
+#define TURNZONE  50//SAFEZONE is the distance in which robot will try yo turn when obstacle appear; is set to 50cm (calibratable)
 #define STOPZONE  25//STOPZONE is the distance in which robot will stop imidiately if an obstacle is detected; is set to be 25cm (calibratable)
 #define TURNSPEED  10//the angular speed constant at which the robot turns(calibratable)
-class motor{
+struct motor{
        public:
              int directionControl_1;
              int directionControl_2;
@@ -17,7 +17,7 @@ motor motorA = {2,3,4};//motor A direction controls are in pin 2 and 3, and its 
 motor motorB = {8,9,10};//motor B direction controls are in pin 8 and 9, and its speed PWM is pin 10
 int triggerPin[] = {22,24,26};//sonars trigger pins are 22...
 int echoPin[] = {23,25,27};//sonar echo pins are 23...
-static int accelerationConstant = 8;//multiples of 10
+static int accelerationConstant = 0;//multiples of 10
 static int decelerationConstant = 0;//multiples of 10
 NewPing sonarLeft(triggerPin[0], echoPin[0], 500);//creating a new object called "ultrasonicSensor()" which belong to class NewPing; 500 cm is maximum distance
 NewPing sonarRight(triggerPin[1], echoPin[1], 500);
@@ -56,38 +56,42 @@ void loop()
         rightView = sonarRight.ping_cm();
         delay(30);
         midView = sonarMid.ping_cm();
-        if(leftView < STOPZONE || rightView < STOPZONE || midView < STOPZONE)//when obstacle appear in STOPZONE, cut off power to the motors
+        if(leftView <= STOPZONE || rightView <= STOPZONE || midView <= STOPZONE)//when obstacle appear in STOPZONE, cut off power to the motors
         {
-            motorA.speedPWM = 0;
-            motorB.speedPWM = 0;
+            analogWrite(motorA.speedPWM, 0);
+            analogWrite(motorB.speedPWM, 0);
+            accelerationConstant = 0;
             Serial.print(leftView);
-            Serial.print(" cm  ");            
+            Serial.print(" ");            
             Serial.print(rightView);
-            Serial.print(" cm  ");
+            Serial.print(" ");
             Serial.print(midView);
-            Serial.print(" cm  \n");
+            Serial.println(" cm  not YOLO");
             delay(50);
         }
-        else//when obstacle is not within STOPZONE
+        if (leftView <= TURNZONE || rightView <= TURNZONE || midView <= TURNZONE)//when obstacle is not within TURNZONE
         {
-            if (leftView < SAFEZONE)//if obstacle is in left view then turn right
+            if (leftView <= TURNZONE)//if obstacle is in left view then turn right
             {
-                turnRight(motorA.directionControl_1, motorA.directionControl_2, motorB.directionControl_1, motorB.directionControl_2, motorA.speedPWM, motorB.speedPWM, leftView, rightView, midView);                
+                //turnRight(motorA.directionControl_1, motorA.directionControl_2, motorA.speedPWM, motorB.directionControl_1, motorB.directionControl_2, motorB.speedPWM, leftView, rightView, midView);
+                turnRight(2, 3, 4, 8, 9, 10, leftView, rightView, midView);
             }
             else//if obstacle not in left view then check for right view
             {
-                if(rightView < SAFEZONE)//if obstacle is in right view the turn left
+                if(rightView <= TURNZONE)//if obstacle is in right view the turn left
                 {
-                    turnLeft(motorA.directionControl_1, motorA.directionControl_2, motorB.directionControl_1, motorB.directionControl_2, motorA.speedPWM, motorB.speedPWM, leftView, rightView, midView);
+                    //turnLeft(motorA.directionControl_1, motorA.directionControl_2, motorA.speedPWM, motorB.directionControl_1, motorB.directionControl_2, motorB.speedPWM, leftView, rightView, midView);
+                    turnLeft(2, 3, 4, 8, 9, 10, leftView, rightView, midView);
                 }
                 else//if obstacle is not in right view either, chek for mid view
                 {
-                    if(midView < SAFEZONE)//if obstacle is in mid view, generate random turn
+                    if(midView <= TURNZONE)//if obstacle is in mid view, generate random turn
                     {
-                        randomTurn(motorA.directionControl_1, motorA.directionControl_2, motorB.directionControl_1, motorB.directionControl_2, motorA.speedPWM, motorB.speedPWM, leftView, rightView, midView);
+                        randomTurn(motorA.directionControl_1, motorA.directionControl_2, motorA.speedPWM, motorB.directionControl_1, motorB.directionControl_2, motorB.speedPWM, leftView, rightView, midView);
                     }
                     else                        
-                        accelerationMotor(motorA.directionControl_1, motorA.directionControl_2, motorA.speedPWM, motorB.directionControl_1, motorB.directionControl_2, motorB.speedPWM);
+                        //accelerationMotor(motorA.directionControl_1, motorA.directionControl_2, motorA.speedPWM, motorB.directionControl_1, motorB.directionControl_2, motorB.speedPWM);
+                        accelerationMotor(2, 3, 4, 8, 9, 10, leftView, midView, rightView);//(Cat Tran: "Arduino, for some reason, doesn't like passing class memember variables in a funtion!?!?!")
                 }
             }
         }
@@ -105,7 +109,7 @@ void differentialDrive(int turnVelocity, int leftWheel, int rightWheel)//leftWhe
   rightWheel = (turnVelocity * WHEEL_L)/(2 * WHEEL_R);
 }
 //turn right funtion
-void turnRight(int A_directionControl_1, int A_directionControl_2, int B_directionControl_1, int B_directionControl_2, int A_speedPWM, int B_speedPWM, int left, int right, int mid)
+void turnRight(int A_directionControl_1, int A_directionControl_2, int A_speedPWM, int B_directionControl_1, int B_directionControl_2, int B_speedPWM, int left, int right, int mid)
 {
         analogWrite(A_speedPWM, 10 * TURNSPEED);  
         digitalWrite(A_directionControl_1, HIGH);
@@ -139,50 +143,31 @@ void turnLeft(int A_directionControl_1, int A_directionControl_2, int B_directio
         delay(50);
 }
 //generate random turn funtion
-void randomTurn(int A_directionControl_1, int A_directionControl_2, int B_directionControl_1, int B_directionControl_2, int A_speedPWM, int B_speedPWM, int left, int right, int mid)
+void randomTurn(int A_directionControl_1, int A_directionControl_2, int A_speedPWM, int B_directionControl_1, int B_directionControl_2, int B_speedPWM, int left, int right, int mid)
 {
         
 }
 //------------------------------------------acceleration--deceleration---------------------------------------------------------------------------//
-void accelerationMotor(int A_DirectionControl_1, int A_DirectionControl_2, int A_speedPWM, int B_DirectionControl_1, int B_DirectionControl_2, int B_speedPWM)
-{    
-    if (sonarLeft.ping_cm() >= SAFEZONE)//if obstacle is not within SAFEZONE
-    {      
-        if(accelerationConstant <= 24)//increment acelerationConstant if it is not maximum, that is 25
+void accelerationMotor(int A_DirectionControl_1, int A_DirectionControl_2, int A_speedPWM, int B_DirectionControl_1, int B_DirectionControl_2, int B_speedPWM, int leftView, int midView, int rightView)
+{ 
+        if(accelerationConstant <= 8)//increment acelerationConstant if it is not maximum, that is 25
         {
 		accelerationConstant++;
         }
-        analogWrite(4, 255);//10 * accelerationConstant);  
+        analogWrite(A_speedPWM, 10 * accelerationConstant);  
         digitalWrite(A_DirectionControl_1, HIGH);
         digitalWrite(A_DirectionControl_2, LOW);
         analogWrite(B_speedPWM, 10 * accelerationConstant);  
         digitalWrite(B_DirectionControl_1, HIGH);
-        digitalWrite(B_DirectionControl_2, LOW);
+        digitalWrite(B_DirectionControl_2, LOW);        
         Serial.print(accelerationConstant);
         Serial.print(" ");
-        Serial.print(sonarLeft.ping_cm());          
-        Serial.println("cm acceleration");
+        Serial.print(leftView);
+        Serial.print(" ")        ;
+        Serial.print(rightView);
+        Serial.print(" ");
+        Serial.print(midView);
+        Serial.println("cm YOLO");
         delay(100);           
-        decelerationConstant = accelerationConstant;//deceleration will pick up where acceleration was once obstacle enters SAFEZONE
-    }
-    else if(sonarLeft.ping_cm() < SAFEZONE)//if obstacle is within SAFEZONE    
-    {
-	if(decelerationConstant > 5)//decrement decelerationConstant if it is not minimum, that is 5
-	{
-		decelerationConstant--;
-	}
-	else if(decelerationConstant <= 5)//when decelerationConstant is smaller than 5, just set it to 0
-	{
-		decelerationConstant = 0;
-	}
-	analogWrite(4, 10 * decelerationConstant);
-	digitalWrite(A_DirectionControl_1, HIGH);
-	digitalWrite(A_DirectionControl_2, LOW);
-	Serial.print(decelerationConstant);
-	Serial.print(" ");
-	Serial.print(sonarLeft.ping_cm());
-	Serial.println("cm");
-	delay(50);               
-	accelerationConstant = decelerationConstant;//acceleration will pick up where deceleration was once obstacle is out of SAFEZONE
-    }
+
 }
